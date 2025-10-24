@@ -52,11 +52,13 @@ function self:load()
         local songs = self:loadSongs()
         if songs then
             for index, song in pairs(songs) do
+                -- The actual songs saving
                 local fixSong = {
                     name = song[1],
                     icon = song[2],
                     color = song[3],
-                    path = song.path
+                    path = song.path,
+                    mod = song.mod
                 }
                 table.insert(self.songs, fixSong)
             end
@@ -132,7 +134,8 @@ function self:keypressed(key)
     elseif key == "return" or key == "space" then
         local selected = self.songs[self.selectedIndex]
         if selected then
-            print("Loading song:", selected.name, "from", selected.path)
+            print("Loading song:", selected.name, "from", selected.name)
+            assert(selected.mod)
             Utils:loadSong({path = selected.path, mod = selected.mod, name = selected.name})
         else
             print("No songs to load")
