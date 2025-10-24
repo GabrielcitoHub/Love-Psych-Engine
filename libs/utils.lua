@@ -5,8 +5,8 @@ self.paths = {
     mods = "mods/",
     assets = "assets/"
 }
-self.paths.shared = self.paths.assets .. "/shared/"
-self.paths.images = self.paths.shared .. "/images/"
+self.paths.shared = self.paths.assets .. "shared/"
+self.paths.images = self.paths.shared .. "images/"
 
 function self:getPath(desiredPath)
     return self.paths[desiredPath]
@@ -63,6 +63,44 @@ function self:buildQuads(atlas, texture)
     return quads
 end
 
+function self:parseXMLAnimation(data, animName)
+    local atlas = self:parseTextureAtlas(data)
+    local frames = {}
+
+    -- Look for frames starting with animName
+    for name, frame in pairs(atlas.frames) do
+        local prefix, num = name:match("^(.-)(%d+)$")
+        if prefix == animName then
+            table.insert(frames, {
+                index = tonumber(num),
+                quadData = frame
+            })
+        end
+    end
+
+    if #frames == 0 then
+        print("❌ No frames found for animation:", animName)
+        return nil
+    end
+
+    -- Sort frames numerically
+    table.sort(frames, function(a, b)
+        return a.index < b.index
+    end)
+
+    -- Convert to clean frames table
+    for i, f in ipairs(frames) do
+        frames[i] = f.quadData
+    end
+
+    print("✅ XML Animation parsed:", animName, "Frames:", #frames)
+
+    return {
+        type = "xml",
+        imagePath = atlas.imagePath,
+        frames = frames
+    }
+end
 
 function self:parseTextureAtlas(xmlText)
     local atlas = {frames = {}}
