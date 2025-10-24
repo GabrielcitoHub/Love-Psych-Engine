@@ -8,11 +8,49 @@ self.noteOpponentArrows = {} -- static opponent arrows
 self.scrollSpeed = 1.5
 self.strumLineY = love.graphics.getHeight() - 150
 self.arrowKeys = {"left", "down", "up", "right", "left", "down", "up", "right"}
+self.preloadTime = 1 -- seconds ahead of time to spawn notes
+self.notePool = {} -- free sprites to reuse
+
+function self:clickSound()
+    if not settings["Click Sound"] then return end
+    soundManager:playSound("hitsound", {new = true})
+end
+
+function self:exit()
+    self.song.inst:stop()
+    self.song.voices:stop()
+    Utils:goBack("menu")
+end
+
+function self:makeCharacters()
+    self.characters = {}
+    self.characters.bf = CharactersLib:getBF()
+    local chart = self.song.chart
+    local song = chart
+    if self.oldChart then
+        song = chart.song
+    end
+    local dad = song.player2
+    print("Player 2: " .. dad)
+    if not self.oldChart then
+        self.characters.opponent = CharactersLib:getOpponent(dad, self.mod, dad)
+    else
+        print("MOD = " .. self.mod.modName)
+        self.characters.opponent = CharactersLib:getOldOpponent(self.mod, dad)
+    end
+end
+
+function self:defineConstants()
+    if self.song.chart.song.notes then
+        self.oldChart = true
+    end
+end
 
 -- 🔹 LOAD FUNCTION
 function self:load(song)
     self.paths = song.path
     self.mod = song.mod
+    print(self.mod.modName)
 
     self.songPath = self.paths.songs
     self.dataPath = self.paths.data
@@ -23,18 +61,103 @@ function self:load(song)
 
     -- Chart
     self.song.chart = Utils:loadJson(self.dataPath .. "/" .. song.name .. "-hard.json")
+
     print("BPM:", self.song.chart.bpm)
 
     self.song.inst:play()
     self.song.voices:play()
 
-    self:makeNoteArrows()
-    self:makeOpponentNoteArrows()
+    self:defineConstants()
+
+    self:makeCharacters()
+    self:makePlayableArrows()
     self:makeArrows()
+end
+
+function self:getNoteSprite(note)
+    local dir = self.arrowKeys[note.lane + 1]
+    -- reuse sprite if available
+    if #self.notePool > 0 then
+        local tag = table.remove(self.notePool)
+        if not sprm:getProperty(tag, "frames") or not sprm:getProperty(tag, "frames")[dir] then
+            sprm:loadFrame(tag, dir)
+        end
+        sprm:playFrame(tag, dir)
+        return tag
+    end
+
+    -- otherwise create a new sprite
+    local tag = "note_" .. note.time .. "_" .. dir .. "_" .. note.lane
+    local img = Utils:getPath("images") .. "arrows/" .. dir .. ".png"
+
+    sprm:makeLuaSprite(tag, img, 0, 0)
+    sprm:setObjectSize(tag, 2, 2)
+
+    return tag
+end
+
+function self:spawnNoteSprite(note)
+    if note.sprite then return end
+
+    local sprite = self:getNoteSprite(note)
+
+    note.sprite = sprite
+    note.active = true
+end
+
+function self:releaseNoteSprite(note)
+    note.active = false
+    note.hit = true
+    if note.sprite then
+        table.insert(self.notePool, note.sprite) -- reuse later
+        note.sprite = nil
+    end
+end
+
+function self:getDir(lane)
+    return self.arrowKeys[lane + 1]
+end
+
+function self:hitArrow(arrow, note)
+    self.song.voices:setVolume(1)
+    self:releaseNoteSprite(note)
+    if arrow then
+        sprm:playFrame(arrow,self.arrowKeys[note.lane + 1])
+        Utils:tweenScale(arrow, 2, 2.4, 0.1, function()
+            sprm:playFrame(arrow,"strum_" .. self.arrowKeys[note.lane + 1])
+            Utils:tweenScale(arrow, 2.4, 2, 0.1)
+        end)
+    end
+    self:clickSound()
+end
+
+function self:noteMiss(note)
+    if note.lane < 4 then
+        local dir = self:getDir(note.lane)
+        CharactersLib:playBFAnimation(dir, true)
+        self.song.voices:setVolume(0)
+    end
+end
+
+function self:miss()
+    self.song.voices:setVolume(0)
 end
 
 -- 🔹 UPDATE FUNCTION
 function self:update(dt)
+    local songTime = self.song.inst:tell("seconds")
+
+    -- Spawn upcoming notes
+    while self.arrows[self.nextNoteIndex] do
+        local note = self.arrows[self.nextNoteIndex]
+        if note.time - songTime <= self.preloadTime then
+            self:spawnNoteSprite(note)
+            self.nextNoteIndex = self.nextNoteIndex + 1
+        else
+            break
+        end
+    end
+
     -- Opponent hit notes code
     for _, note in ipairs(self.arrows) do
         if not note.hit and note.lane > 3 then
@@ -42,23 +165,26 @@ function self:update(dt)
             if diff < 50 then
                 local key = self.arrowKeys[note.lane + 1]
                 local sprArrow = self:getOpponentArrow(key)
-                if sprArrow then
-                    Utils:tweenScale(sprArrow, 2, 2.4, 0.1, function()
-                        Utils:tweenScale(sprArrow, 2.4, 2, 0.1)
-                    end)
+                self:hitArrow(sprArrow, note)
+                if self.characters.opponent == "dad" then
+                    CharactersLib:playDadAnimation(key)
+                else
+                    CharactersLib:playOpponentAnimation(self.characters.opponent, key)
                 end
-                note.hit = true
-                soundManager:playSound("hitsound", {new = true})
                 break
             end
         end
     end
 
-    local songTime = self.song.inst:tell("seconds")
-
+    -- Update active notes
     for _, note in ipairs(self.arrows) do
-        if not note.hit then
+        if note.active and not note.hit then
             note.y = self.strumLineY - (note.time - songTime) * 400 * self.scrollSpeed
+            
+            if note.y > love.graphics.getHeight() + 200 then
+                self:noteMiss(note)
+                self:releaseNoteSprite(note)
+            end
         end
     end
 end
@@ -66,73 +192,62 @@ end
 -- 🔹 DRAW FUNCTION
 function self:draw()
     for _, note in ipairs(self.arrows) do
-        local dir = self.arrowKeys[note.lane + 1]
-        local targetSprite
-        if note.lane <= 3 then
-            targetSprite = sprm:tagToSprite(self.noteArrows[dir])
-        else
-            targetSprite = sprm:tagToSprite(self.noteOpponentArrows[dir])
+        if note.active and not note.hit then
+            local dir = self.arrowKeys[note.lane + 1]
+            local strum = note.lane > 3
+            if not strum then
+                strum = self.noteArrows[dir]
+            else
+                strum = self.noteOpponentArrows[dir]
+            end
+            local target = sprm:tagToSprite(strum)
+            if note.sprite then
+                sprm:setObjectPosition(note.sprite, target.x, note.y)
+            else
+                love.graphics.rectangle("line",target.x, note.y, 2, 1)
+            end
         end
-        
-        local x = targetSprite.x
-
-        love.graphics.setColor(1, 1, 1)
-        if not note.hit then
-            love.graphics.rectangle("fill", x, note.y, 64, 16)
-        end
-    end
-
-    -- strum line
-    love.graphics.setColor(1, 0, 0)
-    love.graphics.rectangle("fill", 0, self.strumLineY, love.graphics.getWidth(), 5)
-    love.graphics.setColor(1, 1, 1)
-
-    for _, dir in ipairs(self.arrowKeys) do
-        local spriteName = "arrow_" .. dir
-        sprm:draw(spriteName)
-    end
-
-    for _, dir in ipairs(self.arrowKeys) do
-        local spriteName = "opponentArrow_" .. dir
-        sprm:draw(spriteName)
     end
 end
 
--- 🔹 MAKE STATIC ARROWS
-function self:makeNoteArrows()
+
+function self:makeArrow(tag, path, list, extra)
+    extra = extra or {}
+    sprm:makeLuaSprite(tag, path, extra.baseX + (extra.i - 1) * extra.spacing, extra.baseY)
+    sprm:setObjectOrder(tag,2)
+    sprm:setObjectSize(tag, 2, 2)
+    sprm:moveObject(tag, 0, -sprm:getProperty(tag, "image"):getHeight()/2)
+
+    --Frames
+    sprm:loadFrame(tag,extra.dir)
+    sprm:loadFrame(tag,"strum_" .. extra.dir)
+
+    list[extra.dir] = tag
+end
+
+function self:makePlayableArrows()
     local imgFolder = "assets/shared/images/"
     local spacing = 80
     local baseX = love.graphics.getWidth() - (spacing * #self.arrowKeys)
     local baseY = self.strumLineY
 
+    -- Player Arrows
     for i, dir in ipairs(self.arrowKeys) do
         local spriteName = "arrow_" .. dir
-        local imgPath = imgFolder .. "arrows/" .. dir .. ".png"
+        local imgPath = imgFolder .. "arrows/strum_" .. dir .. ".png"
 
-        sprm:makeLuaSprite(spriteName, imgPath, baseX + (i - 1) * spacing, baseY)
-        sprm:setObjectSize(spriteName, 2, 2)
-
-        -- Save reference
-        self.noteArrows[dir] = spriteName
+        self:makeArrow(spriteName, imgPath, self.noteArrows, {baseX = baseX, i = i, spacing = spacing, baseY = baseY, dir = dir})
     end
-end
 
--- 🔹 MAKE STATIC ARROWS
-function self:makeOpponentNoteArrows()
-    local imgFolder = "assets/shared/images/"
-    local spacing = 80
     local baseX = 0
     local baseY = self.strumLineY
 
+    -- Opponent Arrows
     for i, dir in ipairs(self.arrowKeys) do
         local spriteName = "opponentArrow_" .. dir
-        local imgPath = imgFolder .. "arrows/" .. dir .. ".png"
+        local imgPath = imgFolder .. "arrows/strum_" .. dir .. ".png"
 
-        sprm:makeLuaSprite(spriteName, imgPath, baseX + (i - 1) * spacing, baseY)
-        sprm:setObjectSize(spriteName, 2, 2)
-
-        -- Save reference
-        self.noteOpponentArrows[dir] = spriteName
+        self:makeArrow(spriteName, imgPath, self.noteOpponentArrows, {baseX = baseX, i = i, spacing = spacing, baseY = baseY, dir = dir})
     end
 end
 
@@ -143,12 +258,10 @@ end
 -- 🔹 CREATE FALLING ARROWS
 function self:makeArrows()
     self.arrows = {}
+    self.nextNoteIndex = 1
+
     local chart = self.song.chart
     local notesSections = chart.notes or chart.song.notes
-    if chart.song.notes then
-        self.oldChart = true
-    end
-    local bpm = chart.bpm or 120
 
     for _, section in ipairs(notesSections) do
         for _, noteData in ipairs(section.sectionNotes) do
@@ -156,17 +269,19 @@ function self:makeArrows()
             local time = noteData[1] / 1000
             local lane = noteData[2]
             if not mustHit and self.oldChart then
-                lane = getReversed(lane, 7)
+                lane = getReversed(lane, 7) -- reversed mapping
             end
             local length = noteData[3] or 0
 
             table.insert(self.arrows, {
-                musthit = mustHit,
                 time = time,
                 lane = lane,
+                mustHit = mustHit,
                 length = length,
-                y = -100,
-                hit = false
+                sprite = nil,
+                y = -200,
+                hit = false,
+                active = false,
             })
         end
     end
@@ -193,21 +308,17 @@ function self:keypressed(key)
                 local diff = math.abs(note.y - self.strumLineY)
                 if diff < 50 then
                     local sprArrow = self:getArrow(key)
-                    if sprArrow then
-                        Utils:tweenScale(sprArrow, 2, 2.4, 0.1, function()
-                            Utils:tweenScale(sprArrow, 2.4, 2, 0.1)
-                        end)
-                    end
-                    note.hit = true
-                    soundManager:playSound("hitsound", {new = true})
+                    self:hitArrow(sprArrow, note)
+                    CharactersLib:playBFAnimation(key)
                     break
+                else
+                    CharactersLib:playBFAnimation(key, true)
+                    self:miss()
                 end
             end
         end
     elseif key == "escape" then
-        self.song.inst:stop()
-        self.song.voices:stop()
-        Utils:goBack("menu")
+        self:exit()
     end
 end
 
