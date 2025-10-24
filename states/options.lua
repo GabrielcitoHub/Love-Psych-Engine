@@ -82,6 +82,7 @@ function self:load()
     self.options = self.options or {
         { name = "Master Volume", value = 1.0 },
         { name = "Antialiasing", value = false },
+        { name = "Click Sound", value = false },
         { name = "Fullscreen", value = false },
         { name = "Show FPS", value = false },
         { name = "Vsync", value = 1.0 },
@@ -100,7 +101,7 @@ function self:load()
     self:checkOptions()
     if not settingsLoaded then
         self:checkPersistentOptions()
-        settingsLoaded = true
+        _G.settingsLoaded = true
     end
 
     self.selected = 1
