@@ -2,11 +2,11 @@ local characters = {}
 local self = characters
 self.characters = {}
 
-function self:newCharacter(name)
+function self:newCharacter(name, json)
     local char = {}
-
+    char.json = json
     char.name = name
-    char.standTimer = 0
+    char.standTimer = char.json.sing_duration or 0
     char.standed = true
 
     self.characters[name] = char
@@ -23,21 +23,21 @@ function self:playBFAnimation(anim, miss)
     else
         sprm:playAnim(bf.name, anim .. "_miss")
     end
-    bf.standTimer = 0.6
+    bf.standTimer = bf.json.sing_duration
     bf.standed = false
 end
 
 function self:playDadAnimation(anim)
     local dad = self:getcharacter("dad")
     sprm:playAnim(dad.name, anim)
-    dad.standTimer = 0.6
+    dad.standTimer = dad.json.sing_duration
     dad.standed = false
 end
 
 function self:playOpponentAnimation(tag, anim)
     local opponent = self:getcharacter(tag)
     sprm:playAnim(opponent.name, anim)
-    opponent.standTimer = 0.6
+    opponent.standTimer = opponent.json.sing_duration
     opponent.standed = false
 end
 
@@ -47,9 +47,12 @@ end
 
 function self:getBF()
     local bf = "boyfriend"
-    self:newCharacter(bf)
+    
+    local charJson = Utils:loadJson(Utils:getPath("shared") .. "characters/bf.json")
+    self:newCharacter(bf, charJson)
+
     sprm:makeLuaSprite(bf, Utils:getPath("images") .. "characters/BOYFRIEND", love.graphics:getWidth() - 700, love.graphics:getHeight() - 700)
-    sprm:setObjectOrder(bf, -1)
+    sprm:setObjectOrder(bf, 2)
     sprm:addLuaAnimation(bf, "idle", "BF idle dance", "xml")
 
     sprm:addLuaAnimation(bf, "left", "BF NOTE LEFT", "xml")
@@ -66,14 +69,16 @@ function self:getBF()
     return bf
 end
 
-function self:getOpponent(optName, mod, path)
+function self:getOpponent(optName, mod, path, extra)
+    extra = extra or {}
     optName = optName or path
-    self:newCharacter(optName)
 
-    local charJson = self:getCharacterData(path, mod)
+    local charJson = extra.json or self:getCharacterData(path, mod)
+    self:newCharacter(optName, charJson)
+
     local oppSprPath = charJson.image
-    sprm:makeLuaSprite(optName, Utils:getPath("mods") .. mod.modName .. "/images/" .. oppSprPath, 0, love.graphics:getHeight() - 1400)
-    sprm:setObjectOrder(optName, -1)
+    sprm:makeLuaSprite(optName, Utils:getPath("mods") .. mod.modName .. "/images/" .. oppSprPath, 0, love.graphics:getHeight() - 700)
+    sprm:setObjectOrder(optName, 2)
     for _, anim in pairs(charJson.animations) do
         local animation = anim.anim
         local name = anim.name
@@ -90,20 +95,40 @@ function self:getOpponent(optName, mod, path)
     end
     
     sprm:playAnim(optName, "idle")
+    self.defaultOpponent = optName
     return optName
 end
 
 function self:getOldOpponent(mod, path)
     print("MOD: " .. mod.modName)
-    local dad = "dad"
-    self:newCharacter(dad)
-
     local charJson = self:getCharacterData(path, mod)
+
+    local dadAnims = {
+        ["Dad sing note LEFT"] = true,
+        ["Dad sing note DOWN"] = true,
+        ["Dad sing note UP"] = true,
+        ["Dad sing note RIGHT"] = true,
+        ["Dad idle dance"] = true
+    }
+    local dadFound = false
+    for name,anim in pairs(charJson.animations) do
+        if dadAnims[anim.name] then
+            dadFound = true
+        end
+    end
+    if not dadFound then
+        return self:getOpponent(path, mod, path, {json = charJson})
+    end
+
+    local dad = "dad"
+
+    self:newCharacter(dad, charJson)
+
     local oppSprPath = charJson.image
     print("imagePath: " .. oppSprPath)
 
     sprm:makeLuaSprite(dad, Utils:getPath("mods") .. mod.modName .. "/images/" .. oppSprPath, 0, love.graphics:getHeight() - 1400)
-    sprm:setObjectOrder(dad, -1)
+    sprm:setObjectOrder(dad, 2)
     sprm:addLuaAnimation(dad, "idle", "Dad idle dance", "xml")
 
     sprm:addLuaAnimation(dad, "left", "Dad Sing Note LEFT", "xml")
@@ -112,7 +137,18 @@ function self:getOldOpponent(mod, path)
     sprm:addLuaAnimation(dad, "right", "Dad Sing Note RIGHT", "xml")
 
     sprm:playAnim(dad, "idle")
+    self.defaultOpponent = dad
     return dad
+end
+
+-- Utils
+
+function self:getDefaultOpponent()
+    return self:getcharacter(self.defaultOpponent)
+end
+
+function self:clearCharacters()
+    self.characters = {}
 end
 
 function self:update(dt)
@@ -121,7 +157,7 @@ function self:update(dt)
     for name,char in pairs(self.characters) do
         if not char.standed then
             if char.standTimer > 0 then
-                char.standTimer = char.standTimer - 1 * dt
+                char.standTimer = char.standTimer - 10 * dt
             else
                 sprm:playAnim(name, "idle")
                 char.standed = true

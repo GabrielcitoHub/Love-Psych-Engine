@@ -9,6 +9,8 @@ FPS = require("libs/FPS")
 Timer = require("libs/timer")
 Utils = require("libs/utils")
 CharactersLib = require("libs/characters")
+StagesLib = require("libs/stages")
+Psych = require("libs/psych")
 _G.settings = {}
 
 function _G.loadSettings(cfg)
@@ -24,6 +26,8 @@ local function setupStateManager(stsManager)
     if not stsManager then return end
     function stsManager:load(state)
         sprm:clearSprites() -- it was kind of interesting to see thing overlap over lol
+        CharactersLib:clearCharacters()
+        StagesLib:clearStages()
         --i know lol
     end
 end
@@ -37,12 +41,14 @@ function love.load()
 
     -- Loads the settings
     stateManager:loadState("options")
+    Psych:load()
 
     -- Loads the first state
     stateManager:loadState("intro")
 end
 
 function love.update(dt)
+    StagesLib:update(dt)
     sprm:update(dt)
     Timer.update(dt)
     stateManager:update(dt)
