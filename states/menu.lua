@@ -1,15 +1,18 @@
 local state = {}
 local self = state
 self.active = true
-self.buttons = {"storymode", "freeplay", "mods", "options"}
+self.buttons = {"story_mode", "freeplay", "mods", "options", "credits"}
 self.imagesFolder = Utils:getPath("images")
 _G.selected = _G.selected or 1
 
 function self:makeButtons()
     for i = 1,#self.buttons do
         local buttonName = self.buttons[i]
-        sprm:makeLuaSprite(buttonName,self.imagesFolder.."tempmenu/"..buttonName, 65, -135 + (150 * i))
-        sprm:setObjectSize(buttonName, 3, 3)
+        sprm:makeLuaSprite(buttonName,self.imagesFolder.."mainmenu/menu_"..buttonName, 65, -135 + (150 * i))
+        sprm:addLuaAnimation(buttonName, "idle", buttonName.. " idle", "xml")
+        sprm:addLuaAnimation(buttonName, "selected", buttonName.. " selected", "xml")
+        sprm:playAnim(buttonName, "idle")
+        sprm:setObjectSize(buttonName, 1, 1)
         sprm:setObjectOrder(buttonName,2)
     end
     self:updateButtonSizes()
@@ -48,12 +51,14 @@ function self:updateButtonSizes()
             end
         end
         if found then
-            sprm:setObjectSize(found, 3, 3)
+            sprm:setObjectSize(found, 1, 1)
+            sprm:playAnim(found, "idle")
         end
     end 
     local selectedButton = self.buttons[selected]
     if selectedButton then
-        sprm:setObjectSize(selectedButton, 4, 4)
+        sprm:setObjectSize(selectedButton, 1.2, 1.2)
+        sprm:playAnim(selectedButton, "selected")
     end
 end
 
