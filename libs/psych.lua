@@ -45,11 +45,12 @@ _G.setPropertyLuaSprite = function(...)
     sprm:setProperty(...)
 end
 _G.setProperty = function(tag, value)
-    return "lmao"
+    sprm:_setProperty(tag, value)
 end
 _G.getProperty = function(tag)
-    return "lmao"
+    return sprm:_getProperty(tag)
 end
+
 _G.setTextColor = function(text, color, idk)
     return "lmao"
 end

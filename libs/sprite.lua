@@ -248,7 +248,7 @@ function spritemanager:addLuaAnimation(tag, animTag, animname, animtype, extra)
     ----------------------------------------------------------
     if animtype == "xml" then
         local xmlPath = spr.path:gsub("%.[^%.]+$", "") .. ".xml"
-        print("XML Path: " .. xmlPath)
+        -- print("XML Path: " .. xmlPath)
         if not love.filesystem.getInfo(xmlPath) then
             print("[WARN] Missing XML animation file: " .. xmlPath)
             return
@@ -452,6 +452,66 @@ end
 -- Third parameter must be the new value of that property
 function spritemanager:setProperty(tag,property,value)
     self:tagToSprite(tag)[property] = value
+end
+
+local function splitDots(str)
+    local parts = {}
+    for p in string.gmatch(str, "([^%.]+)") do
+        parts[#parts + 1] = p
+    end
+    return parts
+end
+
+-- Walks through nested tables and returns (finalTable, finalKey)
+local function resolvePath(root, parts, startIndex)
+    local tbl = root
+    for i = startIndex, #parts - 1 do
+        local key = parts[i]
+        tbl[key] = tbl[key] or {}   -- auto-create tables if missing
+        tbl = tbl[key]
+    end
+    local finalKey = parts[#parts]
+    return tbl, finalKey
+end
+
+-- NESTED setProperty
+function spritemanager:_setProperty(tag, value)
+    local parts = splitDots(tag)
+
+    local sprTag = parts[1]           -- sprite name
+    local spr = sprm:tagToSprite(sprTag)
+    if not spr then return end
+
+    if #parts == 2 then
+        -- simple case, no nesting
+        return sprm:setProperty(sprTag, parts[2], value)
+    end
+
+    -- nested case
+    local tbl, key = resolvePath(spr, parts, 2)
+    tbl[key] = value
+end
+
+-- NESTED getProperty
+function spritemanager:_getProperty(tag)
+    local parts = splitDots(tag)
+
+    local sprTag = parts[1]
+    local spr = sprm:tagToSprite(sprTag)
+    if not spr then return end
+
+    if #parts == 2 then
+        -- simple case
+        return sprm:getProperty(sprTag, parts[2])
+    end
+
+    -- nested case
+    local tbl = spr
+    for i = 2, #parts do
+        tbl = tbl[parts[i]]
+        if tbl == nil then return nil end
+    end
+    return tbl
 end
 
 function spritemanager:addCollidable(tag, collidable)

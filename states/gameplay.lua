@@ -79,12 +79,35 @@ function self:tryFixFilename(path)
     return path -- if still not found, keep original
 end
 
+function self:songInit()
+    -- Audio
+    local instPath = self.songPath
+    if not love.filesystem.getInfo(instPath) then
+        instPath = self:tryFixFilename(instPath)
+        -- try again but replacing spaces in the filename with "-"
+    end
+
+    print(instPath)
+    self.song.inst = love.audio.newSource(instPath .. "/inst.ogg", "static")
+    local voicesPath = self.songPath .. "/voices.ogg"
+    if love.filesystem.getInfo(voicesPath) then
+        self.song.voices = love.audio.newSource(voicesPath, "static")
+    end
+
+    print("BPM:", self.song.chart.bpm)
+
+    self.song.inst:play()
+    if self.song.voices then
+        self.song.voices:play()
+    end
+end
+
 -- 🔹 LOAD FUNCTION
 function self:load(song)
     self.song = song
     self.paths = song.path
     self.mod = song.mod
-    self.difficulty = string.lower(song.difficulty)
+    self.difficulty = string.lower(song.difficulty or "Hard")
     if self.difficulty == "normal" then
         self.difficulty = ""
     end
@@ -118,35 +141,15 @@ function self:load(song)
     print("PATH2: " .. chartLoadPath)
     
     self.song.chart = Utils:loadJson(chartLoadPath)
+    -- Load song stage
     self.song.stage = self.song.chart.stage or self.song.chart.song.stage
     self.song.stage = StagesLib:loadStage(self.song.stage, song.mod)
 
-    -- Audio
-    local instPath = self.songPath
-    if not love.filesystem.getInfo(instPath) then
-        instPath = self:tryFixFilename(instPath)
-        -- try again but replacing spaces in the filename with "-"
-    end
-
-    print(instPath)
-    self.song.inst = love.audio.newSource(instPath .. "/inst.ogg", "static")
-    local voicesPath = self.songPath .. "/voices.ogg"
-    if love.filesystem.getInfo(voicesPath) then
-        self.song.voices = love.audio.newSource(voicesPath, "static")
-    end
-
-    print("BPM:", self.song.chart.bpm)
-
-    self.song.inst:play()
-    if self.song.voices then
-        self.song.voices:play()
-    end
-
     self:defineConstants()
-
     self:makeCharacters()
     self:makePlayableArrows()
     self:makeArrows()
+    self:songInit()
 end
 
 function self:getNoteSprite(note)
@@ -154,10 +157,15 @@ function self:getNoteSprite(note)
     -- reuse sprite if available
     if #self.notePool > 0 then
         local tag = table.remove(self.notePool)
-        if not sprm:getProperty(tag, "frames") or not sprm:getProperty(tag, "frames")[dir] then
+        local frames = sprm:getProperty(tag, "frames") or nil
+        if not frames then
+            sprm:loadFrame(tag, dir)
+        elseif frames and not frames[dir] then
             sprm:loadFrame(tag, dir)
         end
         sprm:playFrame(tag, dir)
+        -- print("using reused sprite: " .. tostring(tag))
+        sprm:setProperty(tag, "visible", true)
         return tag
     end
 
@@ -182,12 +190,13 @@ function self:spawnNoteSprite(note)
 end
 
 function self:releaseNoteSprite(note)
-    self.lastNote = note
+    -- print("note released: " .. tostring(note))
     note.active = false
     note.hit = true
     if note.sprite then
         table.insert(self.notePool, note.sprite) -- reuse later
-        note.sprite = nil
+        sprm:setProperty(note.sprite, "visible", false)
+        note = nil
     end
 end
 
@@ -202,10 +211,10 @@ function self:hitArrow(arrow, note)
     self:releaseNoteSprite(note)
     if arrow then
         sprm:playFrame(arrow,self.arrowKeys[note.lane + 1])
-        Utils:tweenScale(arrow, 2, 2.4, 0.1, function()
-            sprm:playFrame(arrow,"strum_" .. self.arrowKeys[note.lane + 1])
-            Utils:tweenScale(arrow, 2.4, 2, 0.1)
-        end)
+        -- Utils:tweenScale(arrow, 2, 2.4, 0.1, function()
+        --     sprm:playFrame(arrow,"strum_" .. self.arrowKeys[note.lane + 1])
+        --     Utils:tweenScale(arrow, 2.4, 2, 0.1)
+        -- end)
     end
     self:clickSound()
 end
@@ -231,13 +240,9 @@ function self:update(dt)
     local songTime = self.song.inst:tell("seconds")
 
     -- Spawn upcoming notes
-    while self.arrows[self.nextNoteIndex] do
-        local note = self.arrows[self.nextNoteIndex]
+    for _,note in ipairs(self.arrows) do
         if note.time - songTime <= self.preloadTime then
             self:spawnNoteSprite(note)
-            self.nextNoteIndex = self.nextNoteIndex + 1
-        else
-            break
         end
     end
 
@@ -398,7 +403,17 @@ end
 -- 🔹 INPUT HANDLING
 function self:keypressed(key)
     local keyMap = {left = 0, down = 1, up = 2, right = 3}
-    local lane = keyMap[key]
+    local extrakeybinds = {a = 0, s = 1, w = 2, d = 3}
+    local lane = keyMap[key] or extrakeybinds[key]
+    local extralanei = extrakeybinds[key]
+    if extralanei then
+        for km,i in pairs(keyMap) do
+            if i == extralanei then
+                key = km
+                break
+            end 
+        end
+    end
 
     if lane ~= nil then
         for _, note in ipairs(self.arrows) do

@@ -169,7 +169,7 @@ function self:tweenScale(obj, targetX, targetY, duration, onComplete)
             obj.sx = startX + (targetX - startX) * t
             obj.sy = startY + (targetY - startY) * t
             if t >= 1 then
-                if onComplete then onComplete() end
+                if onComplete and obj then onComplete() end
                 return true -- done
             end
         end
