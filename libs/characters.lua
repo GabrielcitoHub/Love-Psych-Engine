@@ -69,6 +69,25 @@ function self:getBF()
     return bf
 end
 
+function self:getGF()
+    local gf = "gf"
+    
+    local charJson = Utils:loadJson(Utils:getPath("shared") .. "characters/gf.json")
+    self:newCharacter(gf, charJson)
+
+    sprm:makeLuaSprite(gf, Utils:getPath("images") .. "characters/GF_assets", love.graphics:getWidth() - 700, love.graphics:getHeight() - 700)
+    sprm:setObjectOrder(gf, 2)
+    sprm:addLuaAnimation(gf, "idle", "GF Dancing Beat", "xml")
+
+    sprm:addLuaAnimation(gf, "left", "GF NOTE LEFT", "xml")
+    sprm:addLuaAnimation(gf, "down", "GF NOTE DOWN", "xml")
+    sprm:addLuaAnimation(gf, "up", "GF NOTE UP", "xml")
+    sprm:addLuaAnimation(gf, "right", "GF NOTE RIGHT", "xml")
+
+    sprm:playAnim(gf, "idle")
+    return gf
+end
+
 function self:getOpponent(optName, mod, path, extra)
     extra = extra or {}
     optName = optName or path
