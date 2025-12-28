@@ -72,6 +72,7 @@ end
 function self:getOpponent(optName, mod, path, extra)
     extra = extra or {}
     optName = optName or path
+    print("OPTNAME: " .. optName)
 
     local charJson = extra.json or self:getCharacterData(path, mod)
     self:newCharacter(optName, charJson)
@@ -117,7 +118,7 @@ function self:getOldOpponent(mod, path)
         end
     end
     if not dadFound then
-        return self:getOpponent(path, mod, path, {json = charJson})
+        return self:getOpponent("dad", mod, path, {json = charJson})
     end
 
     local dad = "dad"

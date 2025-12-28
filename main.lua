@@ -1,3 +1,4 @@
+Game = require "game"
 _G.stateManager = require("libs.stateManager")
 _G.sprm = require("libs.sprite")
 _G.json = require("libs.json")

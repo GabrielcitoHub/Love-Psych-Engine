@@ -6,7 +6,7 @@ self.arrows = {}       -- falling notes
 self.noteArrows = {}   -- static target arrows
 self.noteOpponentArrows = {} -- static opponent arrows
 self.scrollSpeed = 1.5
-self.strumLineY = love.graphics.getHeight() - 150
+self.strumLineY = love.graphics.getHeight() - 75
 self.arrowKeys = {"left", "down", "up", "right", "left", "down", "up", "right"}
 self.preloadTime = 1 -- seconds ahead of time to spawn notes
 self.notePool = {} -- free sprites to reuse
@@ -36,7 +36,7 @@ function self:makeCharacters()
     local dad = song.player2
     print("Player 2: " .. dad)
     if not self.oldChart then
-        self.characters.opponent = CharactersLib:getOpponent(dad, self.mod, dad)
+        self.characters.opponent = CharactersLib:getOpponent("dad", self.mod, dad)
     else
         print("MOD = " .. self.mod.modName)
         self.characters.opponent = CharactersLib:getOldOpponent(self.mod, dad)
@@ -165,7 +165,7 @@ function self:getNoteSprite(note)
         end
         sprm:playFrame(tag, dir)
         -- print("using reused sprite: " .. tostring(tag))
-        sprm:setProperty(tag, "visible", true)
+        sprm:setProperty(tag, "enabled", true)
         return tag
     end
 
@@ -194,8 +194,8 @@ function self:releaseNoteSprite(note)
     note.active = false
     note.hit = true
     if note.sprite then
+        print(note.sprite)
         table.insert(self.notePool, note.sprite) -- reuse later
-        sprm:setProperty(note.sprite, "visible", false)
         note = nil
     end
 end
@@ -208,13 +208,14 @@ function self:hitArrow(arrow, note)
     if self.song.voices then
         self.song.voices:setVolume(1)
     end
+    sprm:setProperty(note.sprite, "enabled", false)
     self:releaseNoteSprite(note)
     if arrow then
-        sprm:playFrame(arrow,self.arrowKeys[note.lane + 1])
-        -- Utils:tweenScale(arrow, 2, 2.4, 0.1, function()
-        --     sprm:playFrame(arrow,"strum_" .. self.arrowKeys[note.lane + 1])
-        --     Utils:tweenScale(arrow, 2.4, 2, 0.1)
-        -- end)
+        local spr = self.arrowKeys[note.lane + 1]
+        sprm:playFrame(arrow,spr)
+        Utils:tweenScale(arrow, 2, 2, 0.1, function()
+            sprm:playFrame(arrow,"strum_" .. spr)
+        end)
     end
     self:clickSound()
 end
@@ -320,7 +321,7 @@ end
 function self:makePlayableArrows()
     local imgFolder = "assets/shared/images/"
     local spacing = 80
-    local baseX = love.graphics.getWidth() - (spacing * #self.arrowKeys)
+    local baseX = love.graphics.getWidth() - (spacing * #self.arrowKeys) - 40
     local baseY = self.strumLineY
 
     -- Player Arrows
@@ -331,7 +332,7 @@ function self:makePlayableArrows()
         self:makeArrow(spriteName, imgPath, self.noteArrows, {baseX = baseX, i = i, spacing = spacing, baseY = baseY, dir = dir})
     end
 
-    local baseX = 0
+    local baseX = 0 - love.graphics:getWidth() / 3.8
     local baseY = self.strumLineY
 
     -- Opponent Arrows

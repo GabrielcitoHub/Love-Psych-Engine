@@ -479,6 +479,12 @@ function spritemanager:_setProperty(tag, value)
     local parts = splitDots(tag)
 
     local sprTag = parts[1]           -- sprite name
+    
+    if Game[sprTag] then
+        Game[sprTag] = value
+        return
+    end
+
     local spr = sprm:tagToSprite(sprTag)
     if not spr then return end
 
