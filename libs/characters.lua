@@ -121,9 +121,7 @@ function self:getOldOpponent(mod, path)
     end
 
     local dad = "dad"
-
     self:newCharacter(dad, charJson)
-
     local oppSprPath = charJson.image
     print("imagePath: " .. oppSprPath)
 

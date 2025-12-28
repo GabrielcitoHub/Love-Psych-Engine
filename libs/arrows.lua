@@ -1,3 +1,2 @@
-local arrows = {}
-local self = arrows
+local self = {}
 return self

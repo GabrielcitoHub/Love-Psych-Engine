@@ -2,13 +2,20 @@ local state = {}
 local self = state
 self.active = true
 self.buttons = {"story_mode", "freeplay", "mods", "options", "credits"}
+self.stateButtons = {}
 self.imagesFolder = Utils:getPath("images")
 _G.selected = _G.selected or 1
 
 function self:makeButtons()
     for i = 1,#self.buttons do
         local buttonName = self.buttons[i]
-        sprm:makeLuaSprite(buttonName,self.imagesFolder.."mainmenu/menu_"..buttonName, 65, -135 + (150 * i))
+        local buttonPath = self.imagesFolder.."mainmenu/menu_"..buttonName
+        sprm:makeLuaSprite(buttonName,buttonPath, 65, -135 + (150 * i))
+        ---@type Sprite
+        -- local button = Sprite:new(buttonName, buttonPath .. ".png", 65, -135 + (150 * i))
+        -- local xml = button:newAnimation("idle",buttonPath .. ".xml", true)
+        -- xml:play("credits_idle", 5)
+        -- table.insert(self.stateButtons, button)
         sprm:addLuaAnimation(buttonName, "idle", buttonName.. " idle", "xml")
         sprm:addLuaAnimation(buttonName, "selected", buttonName.. " selected", "xml")
         sprm:playAnim(buttonName, "idle")
@@ -77,6 +84,15 @@ function self:keypressed(key)
     end
     if key == "t" then
         Utils:fancyChange("test")
+    end
+end
+
+function self:draw()
+    if true then return end
+    for _,button in pairs(self.stateButtons) do
+        button:draw()
+        print(button.x)
+        print(button.y)
     end
 end
 
